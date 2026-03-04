@@ -1,6 +1,6 @@
 export type DropType = 'screen_recording' | 'screenshot' | 'url'
 
-export type DropVisibility = 'public' | 'private'
+export type DropVisibility = 'public' | 'private' | 'draft'
 
 export interface MentionedUser {
   id: string
@@ -55,11 +55,19 @@ export interface UpdateDropInput {
   visibility?: DropVisibility
 }
 
+export type DatePreset = 'all' | '3d' | '7d' | '30d' | '180d'
+
 export interface DropsFilter {
   tag?: string
   mentionedUserId?: string
   project?: string
   dateFrom?: string
   dateTo?: string
+  /** Preset date range; when set, API client derives dateFrom/dateTo from it. */
+  datePreset?: DatePreset
   includePrivate?: boolean
+  forYou?: boolean
+  userId?: string
+  /** When set, returns only this owner's drops (all visibilities, including drafts) for "My Drops" */
+  ownerId?: string
 }

@@ -1,5 +1,13 @@
-import type { DropsFilter } from '@/types/drop'
+import type { DropsFilter, DatePreset } from '@/types/drop'
 import { cn } from '@/lib/utils'
+
+const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
+  { value: 'all', label: 'All time' },
+  { value: '3d', label: 'Last three days' },
+  { value: '7d', label: 'Last week' },
+  { value: '30d', label: 'Last month' },
+  { value: '180d', label: 'Last six months' },
+]
 
 interface GalleryFiltersProps {
   filters: DropsFilter | undefined
@@ -16,17 +24,9 @@ export function GalleryFilters({
 }: GalleryFiltersProps) {
   const setTag = (tag: string | undefined) =>
     onFiltersChange(tag ? { ...filters, tag } : filters ? { ...filters, tag: undefined } : undefined)
-  const setProject = (project: string | undefined) =>
+  const setDatePreset = (datePreset: DatePreset) =>
     onFiltersChange(
-      project ? { ...filters, project } : filters ? { ...filters, project: undefined } : undefined
-    )
-  const setDateFrom = (dateFrom: string | undefined) =>
-    onFiltersChange(
-      dateFrom ? { ...filters, dateFrom } : filters ? { ...filters, dateFrom: undefined } : undefined
-    )
-  const setDateTo = (dateTo: string | undefined) =>
-    onFiltersChange(
-      dateTo ? { ...filters, dateTo } : filters ? { ...filters, dateTo: undefined } : undefined
+      filters ? { ...filters, datePreset, dateFrom: undefined, dateTo: undefined } : { datePreset }
     )
 
   return (
@@ -47,34 +47,20 @@ export function GalleryFilters({
         </select>
       </label>
       <label className="flex items-center gap-2 text-sm">
-        <span className="text-zinc-600 dark:text-zinc-400">Project</span>
-        <input
-          type="text"
-          placeholder="Filter by project"
-          value={filters?.project ?? ''}
-          onChange={(e) => setProject(e.target.value || undefined)}
-          className="w-36 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-zinc-600 dark:text-zinc-400">From</span>
-        <input
-          type="date"
-          value={filters?.dateFrom ?? ''}
-          onChange={(e) => setDateFrom(e.target.value || undefined)}
+        <span className="text-zinc-600 dark:text-zinc-400">Date</span>
+        <select
+          value={filters?.datePreset ?? 'all'}
+          onChange={(e) => setDatePreset(e.target.value as DatePreset)}
           className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-        />
+        >
+          {DATE_PRESET_OPTIONS.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </label>
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-zinc-600 dark:text-zinc-400">To</span>
-        <input
-          type="date"
-          value={filters?.dateTo ?? ''}
-          onChange={(e) => setDateTo(e.target.value || undefined)}
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-        />
-      </label>
-      {(filters?.tag || filters?.project || filters?.dateFrom || filters?.dateTo) && (
+      {(filters?.tag || (filters?.datePreset && filters.datePreset !== 'all')) && (
         <button
           type="button"
           onClick={() => onFiltersChange(undefined)}

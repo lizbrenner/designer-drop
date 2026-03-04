@@ -47,9 +47,9 @@ export function DropCard({ drop, className }: DropCardProps) {
             No preview
           </div>
         )}
-        {drop.visibility === 'private' && (
+        {(drop.visibility === 'private' || drop.visibility === 'draft') && (
           <span className="absolute right-2 top-2 rounded bg-zinc-900/70 px-2 py-0.5 text-xs font-medium text-white">
-            Private
+            {drop.visibility === 'draft' ? 'Draft' : 'Private'}
           </span>
         )}
       </div>

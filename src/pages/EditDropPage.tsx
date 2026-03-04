@@ -79,6 +79,7 @@ export function EditDropPage() {
           type: drop.type,
           title: drop.title,
           description: drop.description,
+          url: drop.url,
           tags: drop.tags,
           mentionedUsers: drop.mentionedUsers ?? [],
           project: drop.project,

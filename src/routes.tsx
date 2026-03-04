@@ -5,6 +5,10 @@ import { UploadPage } from '@/pages/UploadPage'
 import { DropDetailPage } from '@/pages/DropDetailPage'
 import { EditDropPage } from '@/pages/EditDropPage'
 import { MyDropsPage } from '@/pages/MyDropsPage'
+import { DigestPage } from '@/pages/DigestPage'
+import { SynthesizedPage } from '@/pages/SynthesizedPage'
+import { SynthesisDetailPage } from '@/pages/SynthesisDetailPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 const router = createBrowserRouter([
@@ -19,7 +23,7 @@ const router = createBrowserRouter([
   {
     path: '/upload',
     element: (
-      <PageLayout>
+      <PageLayout withSidebar={false}>
         <UploadPage />
       </PageLayout>
     ),
@@ -45,6 +49,38 @@ const router = createBrowserRouter([
     element: (
       <PageLayout>
         <MyDropsPage />
+      </PageLayout>
+    ),
+  },
+  {
+    path: '/digest',
+    element: (
+      <PageLayout>
+        <DigestPage />
+      </PageLayout>
+    ),
+  },
+  {
+    path: '/synthesized',
+    element: (
+      <PageLayout>
+        <SynthesizedPage />
+      </PageLayout>
+    ),
+  },
+  {
+    path: '/synthesized/:id',
+    element: (
+      <PageLayout>
+        <SynthesisDetailPage />
+      </PageLayout>
+    ),
+  },
+  {
+    path: '/settings',
+    element: (
+      <PageLayout>
+        <SettingsPage />
       </PageLayout>
     ),
   },

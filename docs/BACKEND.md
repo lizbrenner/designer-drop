@@ -100,6 +100,8 @@ Either existing Cognite/user directory or a small `users` table keyed by `id` wi
 - **Security:** Restrict write to backend only; read can be public or signed. Prefer a subpath or bucket like `designer-drop/{env}/{year}/{id}.ext` for clarity and cleanup.
 - **Thumbnails:** For screen recordings, either client sends a frame as image, or backend uses a small job/worker to extract a frame and upload to the same bucket (then store in `thumbnail_url`).
 
+**Step-by-step setup:** See **[STORAGE_SETUP.md](./STORAGE_SETUP.md)** for Supabase Storage, Cloudflare R2, and AWS S3 (create bucket, credentials, env vars, and backend upload code).
+
 ---
 
 ## 5. Auth

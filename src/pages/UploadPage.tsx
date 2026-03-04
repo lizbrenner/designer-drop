@@ -3,128 +3,149 @@ import { useNavigate } from 'react-router-dom'
 import { DropForm } from '@/components/drop/DropForm'
 import { UploadZone } from '@/components/upload/UploadZone'
 import { useCreateDrop } from '@/hooks/useCreateDrop'
+import { uploadFile } from '@/api/upload'
 import type { CreateDropInput, DropType } from '@/types/drop'
-import { DROP_TYPES } from '@/lib/constants'
 
 export function UploadPage() {
   const navigate = useNavigate()
   const { create, loading, error } = useCreateDrop()
-  const [step, setStep] = useState<'type' | 'media' | 'form'>('type')
   const [selectedType, setSelectedType] = useState<DropType>('screenshot')
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
+  const [mediaUrls, setMediaUrls] = useState<string[]>([])
+  const [links, setLinks] = useState<string[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
-  const handleFileSelect = (file: File) => {
-    // In a real app you would upload the file to your backend and get a URL.
-    const url = URL.createObjectURL(file)
-    setMediaUrl(url)
-    setStep('form')
+  const handleFileSelect = async (file: File) => {
+    setUploadError(null)
+    setUploading(true)
+    try {
+      const { url, thumbnailUrl } = await uploadFile(file)
+      const resolved = thumbnailUrl ?? url
+      setMediaUrls((prev) => (prev.length < 5 ? [...prev, resolved] : prev))
+      setSelectedType(file.type.startsWith('video/') ? 'screen_recording' : 'screenshot')
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
   }
 
-  const handleUrlSubmit = (url: string) => {
-    setMediaUrl(url)
-    setStep('form')
+  const handleFilesSelect = async (files: File[]) => {
+    setUploadError(null)
+    setUploading(true)
+    try {
+      for (const file of files) {
+        const { url, thumbnailUrl } = await uploadFile(file)
+        const resolved = thumbnailUrl ?? url
+        setMediaUrls((prev) => (prev.length < 5 ? [...prev, resolved] : prev))
+        setSelectedType(file.type.startsWith('video/') ? 'screen_recording' : 'screenshot')
+      }
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleUrlAdd = (url: string) => {
+    setLinks((prev) => (prev.length < 5 ? [...prev, url] : prev))
+    setSelectedType('url')
+    setUploadError(null)
+  }
+
+  const handleUrlRemove = (index: number) => {
+    setLinks((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const buildPayload = (values: CreateDropInput): CreateDropInput => {
+    const firstLink = links[0]
+    const primaryMedia = mediaUrls[0]
+    return {
+      ...values,
+      type: selectedType,
+      ...(selectedType === 'screen_recording' && primaryMedia && { videoUrl: primaryMedia, thumbnailUrl: primaryMedia }),
+      ...(selectedType === 'screenshot' && primaryMedia && { imageUrl: primaryMedia, thumbnailUrl: primaryMedia }),
+      ...(selectedType === 'url' && firstLink && { url: firstLink }),
+    }
   }
 
   const handleSubmit = async (values: CreateDropInput) => {
-    const payload: CreateDropInput = {
-      ...values,
-      type: selectedType,
-      ...(selectedType === 'screen_recording' && mediaUrl && { videoUrl: mediaUrl, thumbnailUrl: mediaUrl }),
-      ...(selectedType === 'screenshot' && mediaUrl && { imageUrl: mediaUrl, thumbnailUrl: mediaUrl }),
-      ...(selectedType === 'url' && mediaUrl && { url: mediaUrl }),
-    }
+    const payload = buildPayload(values)
     const drop = await create(payload)
     navigate(`/drops/${drop.id}`)
   }
 
-  if (step === 'type') {
-    return (
-      <div className="mx-auto max-w-2xl space-y-6">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          New drop
-        </h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          What are you sharing?
-        </p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {DROP_TYPES.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                setSelectedType(value)
-                setStep('media')
-              }}
-              className="rounded-lg border border-zinc-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-            >
-              <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                {label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (step === 'media') {
-    return (
-      <div className="mx-auto max-w-2xl space-y-6">
-        <button
-          type="button"
-          onClick={() => setStep('type')}
-          className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-        >
-          ← Back
-        </button>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          Add your {selectedType === 'url' ? 'link' : 'file'}
-        </h1>
-        <UploadZone
-          accept={selectedType === 'screen_recording' ? 'video' : selectedType === 'screenshot' ? 'image' : 'all'}
-          onFileSelect={handleFileSelect}
-          onUrlSubmit={selectedType === 'url' ? handleUrlSubmit : undefined}
-        />
-      </div>
-    )
+  const handleSaveDraft = async (values: CreateDropInput) => {
+    const payload = buildPayload(values)
+    await create(payload)
+    navigate('/my-drops')
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <button
-        type="button"
-        onClick={() => setStep('media')}
-        className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-      >
-        ← Back
-      </button>
       <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-        Details
+        New drop
       </h1>
-      {error && (
-        <div
-          className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
-          role="alert"
-        >
-          {error.message}
-        </div>
-      )}
-      <DropForm
-        initialValues={{
-          type: selectedType,
-          title: '',
-          description: '',
-          tags: [],
-          mentionedUsers: [],
-          project: '',
-          labels: [],
-          visibility: 'public',
-        }}
-        onSubmit={handleSubmit}
-        onCancel={() => navigate('/')}
-        isLoading={loading}
-        submitLabel="Create drop"
-      />
+      <div>
+        <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Add media
+        </p>
+        {uploadError && (
+          <div
+            className="mb-2 rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+            role="alert"
+          >
+            {uploadError}
+          </div>
+        )}
+        <UploadZone
+          accept="all"
+          onFileSelect={handleFileSelect}
+          onFilesSelect={handleFilesSelect}
+          maxFiles={5}
+          urls={links}
+          onUrlAdd={handleUrlAdd}
+          onUrlRemove={handleUrlRemove}
+          maxUrls={5}
+          disabled={uploading}
+        />
+        {uploading && (
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Uploading…</p>
+        )}
+      </div>
+      <div>
+        <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Details
+        </p>
+        {error && (
+          <div
+            className="mb-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+            role="alert"
+          >
+            {error.message}
+          </div>
+        )}
+        <DropForm
+          initialValues={{
+            type: selectedType,
+            title: '',
+            description: '',
+            url: links[0] ?? '',
+            tags: [],
+            mentionedUsers: [],
+            project: '',
+            labels: [],
+            visibility: 'public',
+          }}
+          onSubmit={handleSubmit}
+          onSaveDraft={handleSaveDraft}
+          onCancel={() => navigate('/')}
+          isLoading={loading}
+          submitLabel="Publish Drop"
+          hideType
+          hideLink
+        />
+      </div>
     </div>
   )
 }

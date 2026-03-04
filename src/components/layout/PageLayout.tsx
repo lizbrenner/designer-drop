@@ -1,20 +1,16 @@
 import { Header } from './Header'
-import { Sidebar } from './Sidebar'
 
 interface PageLayoutProps {
   children: React.ReactNode
-  /** If true, sidebar is shown (e.g. home, my-drops). Default true. */
+  /** Kept for API compatibility; sidebar is no longer used. */
   withSidebar?: boolean
 }
 
-export function PageLayout({ children, withSidebar = true }: PageLayoutProps) {
+export function PageLayout({ children }: PageLayoutProps) {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <Header />
-      <div className="flex">
-        {withSidebar && <Sidebar />}
-        <main className="flex-1 p-4 md:p-6">{children}</main>
-      </div>
+      <main className="p-4 md:p-6">{children}</main>
     </div>
   )
 }
