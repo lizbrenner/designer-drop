@@ -26,7 +26,7 @@ A central gallery for Cognite designers to share work (screen recordings, screen
 4. **Create the user syntheses table** (for “Synthesize my work”): In the SQL Editor, run [docs/supabase-user-syntheses-table.sql](docs/supabase-user-syntheses-table.sql). This creates `user_syntheses` so users can generate and view synthesized work from My drops.
 5. **Seed mock data (optional):** To test with sample industrial/Cognite-style drops, run [docs/supabase-seed-mock-drops.sql](docs/supabase-seed-mock-drops.sql) in the SQL Editor. This inserts 12 example drops (screenshots, recordings, URLs) so you can try the gallery, filters, and digest without uploading your own.
 7. **Copy env file:** `cp server/env.example server/.env`
-8. **Fill in `server/.env`** with your Supabase Project URL, service role key, and bucket name (see Supabase Dashboard → Project Settings → API, and Storage).
+8. **Fill in `server/.env`** with your Supabase Project URL, service role key, and bucket name (see Supabase Dashboard → Project Settings → API, and Storage). For AI synthesis (weekly digest and “Synthesize my work”), set either `OPENAI_API_KEY` or `GEMINI_API_KEY` (or both; Gemini is used for synthesis when set).
 9. **Install and run the API server:**
    ```bash
    cd server && npm install && npm run dev

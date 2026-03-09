@@ -4,6 +4,7 @@ import cors from 'cors'
 import multer from 'multer'
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import { GoogleGenAI } from '@google/genai'
 
 const app = express()
 const port = process.env.PORT || 3001
@@ -18,8 +19,13 @@ const supabase =
     : null
 
 const openaiApiKey = process.env.OPENAI_API_KEY
+const geminiApiKey = process.env.GEMINI_API_KEY
 const synthesizeSecret = process.env.SYNTHESIZE_SECRET
 const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null
+const gemini = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null
+
+/** Whether we can run digest/user synthesis (needs OpenAI or Gemini). */
+const hasSynthesisLLM = !!(openai || gemini)
 
 /** Build text for embedding from drop row (title, description, tags, project, labels) */
 function dropToEmbeddingText(row) {
@@ -49,6 +55,40 @@ async function ensureDropEmbedding(dropId, row) {
   } catch (err) {
     console.error('Embedding error for drop', dropId, err.message)
   }
+}
+
+/**
+ * Run a single chat completion for synthesis (digest or user synthesis).
+ * Uses Gemini if GEMINI_API_KEY is set, otherwise OpenAI. Returns trimmed assistant text.
+ */
+async function llmChat(systemPrompt, userPrompt) {
+  if (gemini) {
+    const response = await gemini.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.3,
+      },
+    })
+    const text = (response?.text ?? '').trim()
+    if (!text) throw new Error('Empty response from Gemini')
+    return text
+  }
+  if (openai) {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.3,
+    })
+    const text = (completion.choices[0]?.message?.content ?? '').trim()
+    if (!text) throw new Error('Empty response from OpenAI')
+    return text
+  }
+  throw new Error('No LLM configured. Set OPENAI_API_KEY or GEMINI_API_KEY in server .env')
 }
 
 app.use(cors({ origin: true }))
@@ -442,7 +482,7 @@ app.get('/api/digests', async (req, res) => {
   res.json((data || []).map(rowToDigest))
 })
 
-/** Run weekly synthesis for a period; returns markdown. Caller must have supabase + openai. */
+/** Run weekly synthesis for a period; returns markdown. Caller must have supabase + (openai or gemini). */
 async function runSynthesis(periodStart, periodEnd) {
   const { data: drops, error: dropsError } = await supabase
     .from('drops')
@@ -488,23 +528,14 @@ Produce a single markdown document with exactly these sections. Use bullets, quo
 
 ## Copy-paste for Slack
 (Short, scannable version under 2000 chars)`
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    temperature: 0.3,
-  })
-  const contentMd = completion.choices[0]?.message?.content?.trim() || ''
-  if (!contentMd) throw new Error('Empty response from LLM')
+  const contentMd = await llmChat(systemPrompt, userPrompt)
   return contentMd
 }
 
 // POST /api/digests/generate – generate draft for last 7 days (no secret; for in-app "Generate draft" button)
 app.post('/api/digests/generate', async (req, res) => {
   if (!supabase) return res.status(503).json({ message: 'Supabase not configured' })
-  if (!openai) return res.status(503).json({ message: 'OpenAI not configured. Set OPENAI_API_KEY in server/.env' })
+  if (!hasSynthesisLLM) return res.status(503).json({ message: 'AI not configured. Set OPENAI_API_KEY or GEMINI_API_KEY in server/.env' })
   const now = new Date()
   const periodEnd = now.toISOString().slice(0, 10)
   const periodStartDate = new Date(now)
@@ -535,7 +566,7 @@ app.post('/api/admin/synthesize-weekly', async (req, res) => {
     return res.status(401).json({ message: 'Unauthorized' })
   }
   if (!supabase) return res.status(503).json({ message: 'Supabase not configured' })
-  if (!openai) return res.status(503).json({ message: 'OpenAI not configured. Set OPENAI_API_KEY in server/.env' })
+  if (!hasSynthesisLLM) return res.status(503).json({ message: 'AI not configured. Set OPENAI_API_KEY or GEMINI_API_KEY in server/.env' })
   const now = new Date()
   const periodEnd = now.toISOString().slice(0, 10)
   const periodStartDate = new Date(now)
@@ -562,7 +593,7 @@ app.post('/api/admin/synthesize-weekly', async (req, res) => {
 // POST /api/digests/regenerate – re-run synthesis for the current draft period (no secret; for in-app Regenerate button)
 app.post('/api/digests/regenerate', async (req, res) => {
   if (!supabase) return res.status(503).json({ message: 'Supabase not configured' })
-  if (!openai) return res.status(503).json({ message: 'OpenAI not configured' })
+  if (!hasSynthesisLLM) return res.status(503).json({ message: 'AI not configured. Set OPENAI_API_KEY or GEMINI_API_KEY in server/.env' })
   const { data: latest, error: fetchError } = await supabase
     .from('draft_digests')
     .select('period_start, period_end')
@@ -669,23 +700,14 @@ async function runUserSynthesis(userId, periodStart, periodEnd, outputType, cust
 ${JSON.stringify(payload, null, 2)}
 
 Produce a markdown summary suitable for: ${outputLabel}. Use [Source: Title](/drops/<id>) for citations.`
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    temperature: 0.3,
-  })
-  const contentMd = completion.choices[0]?.message?.content?.trim() || ''
-  if (!contentMd) throw new Error('Empty response from LLM')
+  const contentMd = await llmChat(systemPrompt, userPrompt)
   return { contentMd, sourceIds }
 }
 
 // POST /api/syntheses – create a new user synthesis
 app.post('/api/syntheses', async (req, res) => {
   if (!supabase) return res.status(503).json({ message: 'Supabase not configured' })
-  if (!openai) return res.status(503).json({ message: 'OpenAI not configured. Set OPENAI_API_KEY in server/.env' })
+  if (!hasSynthesisLLM) return res.status(503).json({ message: 'AI not configured. Set OPENAI_API_KEY or GEMINI_API_KEY in server/.env' })
   const { userId, datePreset, periodStart, periodEnd, outputType, customOutputDescription, includeMentioned } = req.body || {}
   if (!userId) return res.status(400).json({ message: 'userId is required' })
   const type = outputType || 'colleague_update'
